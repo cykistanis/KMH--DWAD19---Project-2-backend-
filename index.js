@@ -5,16 +5,22 @@ const cors = require('cors');
 const mongodb = require('mongodb');
 const ObjectId = require('mongodb').ObjectId;
 const MongoClient = mongodb.MongoClient;
-const bcrypt = require('bcrypt');
+const mongoose = require('mongoose');
+
 const dotenv = require('dotenv');
-const jwt = require('jsonwebtoken');
-const jwtSecret = 'mysecretkey';
+
 dotenv.config();
 
 let app = express();
 app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+
+
+
+
+
 
 // connect to the Mongo DB
 async function connect() {
@@ -28,25 +34,45 @@ async function connect() {
   return db;
 }
 
+// User schema
+const UserSchema = new mongoose.Schema({
+  username: String,
+  password: String,
+});
 
-// generate salt and hash password
-async function hashPassword(password) {
-  const salt = await bcrypt.genSalt(10);
-  const hash = await bcrypt.hash(password, salt);
-  return hash;
-}
+// User model
+const User = mongoose.model('User', UserSchema);
 
-// compare password with hash
-async function comparePassword(password, hash) {
-  const result = await bcrypt.compare(password, hash);
-  return result;
-}
 
 
 // ROUTES
 
 async function main() {
   let db = await connect();
+
+
+
+  // user authentication start here
+
+  app.post('/test_stationery/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    let usersdetails = await db.collection('users').findOne({ username, password }, (err, user) => {
+      console.log(err, user)
+      if (err) {
+        console.log(err);
+        return res.status(500).send();
+      }
+
+      if (!user) {
+        return res.status(401).send();
+      }
+
+      return res.status(200).send();
+    });
+  });
+
+  // user authentication end here
 
   app.get('/test_stationery', async (req, res) => {
     let items = await db.collection('items').find().toArray();
@@ -81,18 +107,32 @@ async function main() {
 
   })
 
+  // app.patch('/test_stationery/:id/reviews', async (req, res) => {
+  //   let results = await db.collection('items').updateOne({
+  //     '_id': new ObjectId(req.params.id),
+  //   }, {
+  //     '$set': {
+  //       'reviews': req.body.reviews
+  //     }
+  //   })
+  //   res.json({
+  //     'status': true
+  //   })
+  // })
+
   app.patch('/test_stationery/:id/reviews', async (req, res) => {
     let results = await db.collection('items').updateOne({
       '_id': new ObjectId(req.params.id),
     }, {
-      '$set': {
-        'reviews': req.body.reviews
+      '$push': {
+        'reviews': { '$each': req.body.reviews }
       }
     })
     res.json({
       'status': true
     })
   })
+
 
 
   app.patch('/test_stationery/:id', async (req, res) => {
@@ -128,36 +168,6 @@ async function main() {
     })
   })
 
-
-  // User Authentication
-  // app.post('/test_stationery/register', async (req, res) => {
-  //   const { username, password } = req.body;
-
-  //   const existingUser = await db.collection('users').findOne({ username: username });
-  //   if (existingUser) {
-  //     return res.status(400).json({ message: 'User already exists' });
-  //   }
-
-  //   // hash password
-  //   const hashedPassword = await hashPassword(password);
-
-  //   // create new user
-  //   const newUser = {
-  //     username: username,
-  //     password: hashedPassword
-  //   };
-
-  //   // insert new user to database
-  //   await db.collection('users').insertOne(newUser);
-
-  //   res.json({ message: 'User created successfully' });
-
-  // });
-
-
-
-
-  // testing of user authentication end here
 
 }
 
